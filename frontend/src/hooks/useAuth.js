@@ -1,15 +1,40 @@
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
-  const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const initCalled = useRef(false);
 
+  const user = session?.user ?? null;
+
+  // ── Single effect, empty deps, mounted guard ──
+  useEffect(() => {
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (!mounted) return;
+      setSession(s);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, s) => {
+        if (!mounted) return;
+        setSession(s);
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // ── Fetch profile whenever session.user changes ──
   const fetchProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); return null; }
     try {
@@ -27,60 +52,16 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    // ──────────────────────────────────────────────────────────────
-    // THIS IS THE ONLY getSession() CALL IN THE ENTIRE APP.
-    // No other file may call supabase.auth.getSession().
-    // All other components read auth state from this context.
-    // ──────────────────────────────────────────────────────────────
-
-    // 1. Subscribe to auth changes FIRST (so we never miss events
-    //    that fire between getSession and subscription setup).
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        if (event === 'SIGNED_OUT') {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
-          return;
-        }
-        if (newSession?.user) {
-          setSession(newSession);
-          setUser(newSession.user);
-          await fetchProfile(newSession.user.id);
-        } else {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-        }
-        setLoading(false);
-      }
-    );
-
-    // 2. One-time getSession to hydrate from persisted storage.
-    //    Guard with ref so React 18 StrictMode double-mount is safe.
-    if (!initCalled.current) {
-      initCalled.current = true;
-      supabase.auth.getSession().then(async ({ data: { session: s } }) => {
-        if (s?.user) {
-          setSession(s);
-          setUser(s.user);
-          await fetchProfile(s.user.id);
-        }
-        setLoading(false);
-      }).catch(() => {
-        setLoading(false);
-      });
+    if (user?.id) {
+      fetchProfile(user.id);
+    } else {
+      setProfile(null);
     }
-
-    return () => subscription?.unsubscribe();
-  }, [fetchProfile]);
+  }, [user?.id, fetchProfile]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-    setSession(null);
-    setUser(null);
-    setProfile(null);
+    window.location.href = '/';
   }, []);
 
   const refreshProfile = useCallback(async () => {

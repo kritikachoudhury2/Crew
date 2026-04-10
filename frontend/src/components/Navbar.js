@@ -33,9 +33,8 @@ export default function Navbar() {
   };
 
   const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
     setMobileOpen(false);
+    await signOut();
   };
 
   const navLinks = [

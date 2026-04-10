@@ -1,61 +1,42 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../hooks/useAuth';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
+  const { session, loading } = useAuth();
   const handled = useRef(false);
 
   useEffect(() => {
-    // ──────────────────────────────────────────────────────────────
-    // ZERO getSession() calls here.
-    // The Supabase client (with detectSessionInUrl: true) automatically
-    // reads the hash fragment / PKCE code and exchanges it for a session.
-    // We just listen for the resulting SIGNED_IN event.
-    // The AuthProvider's onAuthStateChange will also fire, which is fine —
-    // it updates context state. This local listener only handles ROUTING.
-    // ──────────────────────────────────────────────────────────────
+    if (loading || handled.current) return;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (handled.current) return;
-
-        if (event === 'SIGNED_IN' && session) {
-          handled.current = true;
-
-          try {
-            const { data } = await supabase
-              .from('profiles')
-              .select('id, name, sport')
-              .eq('id', session.user.id)
-              .single();
-
-            if (data && data.name && data.name.trim() !== '') {
-              navigate('/find-a-partner', { replace: true });
-            } else {
-              navigate('/get-started', { replace: true });
-            }
-          } catch {
+    if (session?.user) {
+      handled.current = true;
+      supabase
+        .from('profiles')
+        .select('id, name')
+        .eq('id', session.user.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.name?.trim()) {
+            navigate('/find-a-partner', { replace: true });
+          } else {
             navigate('/get-started', { replace: true });
           }
+        })
+        .catch(() => navigate('/get-started', { replace: true }));
+    } else {
+      // No session after AuthContext finished loading → expired or invalid link
+      const timer = setTimeout(() => {
+        if (!handled.current) {
+          handled.current = true;
+          navigate('/get-started', { replace: true });
         }
-
-        // If Supabase fires INITIAL_SESSION with no session (e.g. expired link),
-        // redirect to get-started after a brief grace period.
-        if (event === 'INITIAL_SESSION' && !session) {
-          // Give the PKCE exchange a moment — SIGNED_IN will follow if valid.
-          setTimeout(() => {
-            if (!handled.current) {
-              handled.current = true;
-              navigate('/get-started', { replace: true });
-            }
-          }, 3000);
-        }
-      }
-    );
-
-    return () => subscription?.unsubscribe();
-  }, [navigate]);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [session, loading, navigate]);
 
   return (
     <div style={{
