@@ -23,19 +23,21 @@ function AppContent() {
       <Navbar />
       <main className="flex-1">
         <Routes>
+          {/* /auth/callback MUST be before any ProtectedRoute so it is never intercepted */}
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/get-started" element={<GetStarted />} />
           <Route path="/" element={<Home />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
-          <Route path="/find-a-partner" element={<ProtectedRoute><FindAPartner /></ProtectedRoute>} />
           <Route path="/events" element={<Events />} />
           <Route path="/events/:slug" element={<Events />} />
           <Route path="/about" element={<About />} />
-          <Route path="/get-started" element={<GetStarted />} />
-          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<Terms />} />
+          {/* Protected routes after all public routes */}
+          <Route path="/find-a-partner" element={<ProtectedRoute><FindAPartner /></ProtectedRoute>} />
           <Route path="/athlete/:id" element={<ProtectedRoute><AthleteProfile /></ProtectedRoute>} />
           <Route path="/my-connections" element={<ProtectedRoute><MyConnections /></ProtectedRoute>} />
           <Route path="/profile/edit" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
-          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<Terms />} />
         </Routes>
       </main>
       <Footer />
