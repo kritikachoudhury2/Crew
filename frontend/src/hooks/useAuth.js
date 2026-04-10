@@ -24,7 +24,19 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    // CRITICAL: On /auth/callback, skip the initial getSession() call.
+    // The Supabase client auto-detects the hash fragment and exchanges it internally.
+    // Calling getSession() simultaneously causes "body stream already read" errors.
+    // The onAuthStateChange listener below will pick up the session once it's ready.
+    const isCallbackPage = window.location.pathname === '/auth/callback';
+
     const init = async () => {
+      if (isCallbackPage) {
+        // Let AuthCallback.js handle the token exchange; just mark loading done
+        // after a brief wait so the callback page can render.
+        setLoading(false);
+        return;
+      }
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
@@ -52,6 +64,8 @@ export function AuthProvider({ children }) {
           setUser(null);
           setProfile(null);
         }
+        // Ensure loading is cleared after any auth event
+        setLoading(false);
       }
     );
 

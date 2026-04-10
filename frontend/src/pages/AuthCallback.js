@@ -1,29 +1,73 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
+  const handled = useRef(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        supabase
+    // CRITICAL: Do NOT call getSession() here — the Supabase client automatically
+    // detects the hash fragment and exchanges the token internally.
+    // Calling getSession() simultaneously causes "body stream already read" error.
+    // Instead, listen for the SIGNED_IN event which fires AFTER the exchange completes.
+
+    const routeUser = async (session) => {
+      if (handled.current) return;
+      handled.current = true;
+
+      if (!session) {
+        navigate('/get-started', { replace: true });
+        return;
+      }
+
+      try {
+        const { data } = await supabase
           .from('profiles')
           .select('id, name, sport')
           .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => {
-            if (data && data.name && data.name.trim() !== '') {
-              navigate('/find-a-partner');
-            } else {
-              navigate('/get-started');
-            }
-          });
-      } else {
-        navigate('/get-started');
+          .single();
+
+        if (data && data.name && data.name.trim() !== '') {
+          navigate('/find-a-partner', { replace: true });
+        } else {
+          navigate('/get-started', { replace: true });
+        }
+      } catch {
+        navigate('/get-started', { replace: true });
       }
-    });
+    };
+
+    // Listen for auth state change — this fires once the token exchange is done
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+          if (session) {
+            routeUser(session);
+          }
+        }
+      }
+    );
+
+    // Fallback: if onAuthStateChange already fired before this effect ran,
+    // check once after a short delay (the client may have already processed the hash)
+    const fallbackTimer = setTimeout(async () => {
+      if (handled.current) return;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        routeUser(session);
+      } catch {
+        if (!handled.current) {
+          handled.current = true;
+          navigate('/get-started', { replace: true });
+        }
+      }
+    }, 2000);
+
+    return () => {
+      subscription?.unsubscribe();
+      clearTimeout(fallbackTimer);
+    };
   }, [navigate]);
 
   return (
