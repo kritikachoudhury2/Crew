@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { ArrowLeft, ArrowRight, MapPin, Camera, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
 const SPORTS = [
   { id: 'hyrox', label: 'HYROX', desc: 'Fitness racing · 8 stations + 8km running' },
@@ -145,7 +146,7 @@ export default function GetStarted() {
   };
 
   const handleFinalSave = async () => {
-    if (!user) return;
+    if (!user) return false;
     const finalData = {
       id: user.id,
       name: answers.name, age: answers.age ? parseInt(answers.age) : null,
@@ -169,9 +170,18 @@ export default function GetStarted() {
       partner_gender_pref: answers.partner_gender_pref, phone: answers.phone || phone,
       instagram: answers.instagram, last_active: new Date().toISOString(),
     };
-    await supabase.from('profiles').upsert(finalData);
+    const { error } = await supabase.from('profiles').upsert(
+      finalData,
+      { onConflict: 'id' }
+    );
+    if (error) {
+      console.error('Final save failed:', error.code, error.message, error.details);
+      toast.error('Could not save your profile. Please try again.');
+      return false;
+    }
     localStorage.removeItem('crew-onboarding-progress');
     await refreshProfile();
+    return true;
   };
 
   const update = (key, val) => setAnswers(prev => ({ ...prev, [key]: val }));
@@ -687,7 +697,10 @@ export default function GetStarted() {
             </div>
             <div className="flex gap-3 mt-8">
               <button onClick={goBack} className="px-6 py-3 rounded-pill font-inter font-semibold text-sm" style={{ border: '2px solid rgba(74,61,143,0.30)', color: '#fff' }}><ArrowLeft size={16} /></button>
-              <button onClick={async () => { await handleFinalSave(); setStep('done'); }} disabled={!answers.city}
+              <button onClick={async () => {
+                const ok = await handleFinalSave();
+                if (ok) setStep('done');
+              }} disabled={!answers.city}
                 className="flex-1 py-3 rounded-pill font-inter font-bold text-sm disabled:opacity-30"
                 style={{ background: '#D4880A', color: '#fff' }} data-testid="location-finish">Finish</button>
             </div>

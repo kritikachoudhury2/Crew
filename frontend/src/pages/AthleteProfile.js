@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { calcMatchScore, generateWhyMatched } from '../lib/matching';
 import { SEED_PROFILES } from '../lib/seedProfiles';
 import { ArrowRight, Heart, MoreHorizontal, Eye, CheckCircle, MessageCircle, Flag, Ban, ExternalLink } from 'lucide-react';
+import { toast } from 'sonner';
 
 function GradientAvatar({ name, size = 80 }) {
   const initials = (name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -70,24 +71,38 @@ export default function AthleteProfile() {
 
   const handleConnect = async () => {
     if (!user) return;
-    // Rate limit check
     const { count } = await supabase.from('connect_requests')
       .select('*', { count: 'exact', head: true })
       .eq('from_user_id', user.id)
       .gte('created_at', new Date(Date.now() - 86400000).toISOString());
-    if (count >= 10) { alert('You\'ve reached your daily limit of 10 requests.'); return; }
+    if (count >= 10) {
+      toast.error("You've reached your daily limit of 10 requests.");
+      return;
+    }
 
-    await supabase.from('connect_requests').insert({
+    const { error } = await supabase.from('connect_requests').insert({
       from_user_id: user.id, to_user_id: id, status: 'pending'
     });
+    if (error) {
+      console.error('Request failed:', error.code, error.message);
+      toast.error('Could not send request. Please try again.');
+      return;
+    }
     setConnectionState('sent');
+    toast.success('Connection request sent!');
   };
 
   const handleReport = async (reason) => {
     if (!user) return;
-    await supabase.from('reports').insert({ reporter_id: user.id, reported_id: id, reason });
+    const { error } = await supabase.from('reports').insert({ reporter_id: user.id, reported_id: id, reason });
+    if (error) {
+      console.error('Report failed:', error.code, error.message);
+      toast.error('Could not submit report. Please try again.');
+      return;
+    }
     setReportSent(true);
     setShowMenu(false);
+    toast.success('Thanks for reporting. We will review this.');
   };
 
   if (loading) return (

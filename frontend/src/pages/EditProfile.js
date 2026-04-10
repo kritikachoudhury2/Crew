@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Camera, Save, Trash2, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 
 const CITIES = ['Delhi', 'Mumbai', 'Bangalore', 'Hyderabad', 'Pune', 'Goa', 'Chennai', 'Kolkata', 'Other'];
 const TRAINING_TIMES = ['Early morning', 'Morning', 'Evening', 'Weekends'];
@@ -58,9 +59,16 @@ export default function EditProfile() {
       partner_gender_pref: form.partner_gender_pref,
       instagram: form.instagram, last_active: new Date().toISOString(),
     };
-    await supabase.from('profiles').upsert(data);
+    const { error } = await supabase.from('profiles').upsert(data, { onConflict: 'id' });
+    if (error) {
+      console.error('Save failed:', error.code, error.message, error.details);
+      toast.error('Could not save your profile. Please try again.');
+      setSaving(false);
+      return;
+    }
     await refreshProfile();
     setSaving(false);
+    toast.success('Profile saved!');
   };
 
   const handlePhotoUpload = async (e) => {

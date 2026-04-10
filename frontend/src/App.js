@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './hooks/useAuth';
+import { Toaster } from './components/ui/sonner';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -50,6 +51,7 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <AppContent />
+        <Toaster position="top-center" richColors />
       </AuthProvider>
     </BrowserRouter>
   );
