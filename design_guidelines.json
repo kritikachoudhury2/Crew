@@ -1,0 +1,124 @@
+{
+  "theme_details": {
+    "archetype": "Performance Luxury (Archetype 2 + 5 Hybrid)",
+    "mode": "Dark theme default, with Light mode toggle",
+    "colors": {
+      "css_variables": {
+        "--royal-purple": "#4A3D8F",
+        "--purple-accent": "#6B5FA0",
+        "--amber": "#D4880A",
+        "--amber-light": "#F0A830",
+        "--deep-ink": "#1C0A30",
+        "--dark-card": "#2A1A45",
+        "--lavender-grey": "#F4F2F8",
+        "--pale-purple": "#EDE8F5",
+        "--text-dark": "#1C0A30",
+        "--white": "#FFFFFF"
+      },
+      "dark_mode": {
+        "background_odd": "#1C0A30",
+        "background_even": "#2A1A45",
+        "text": "#FFFFFF",
+        "text_muted": "#EDE8F5"
+      },
+      "light_mode": {
+        "background_odd": "#F4F2F8",
+        "background_even": "#FFFFFF",
+        "text": "#1C0A30",
+        "text_muted": "#4A3D8F"
+      }
+    }
+  },
+  "typography": {
+    "font_family": "Inter (Google Fonts)",
+    "weights": [400, 500, 600, 700, 800],
+    "headings": {
+      "style": "Radical weight contrast. Use font-black (800) for large headings, very tight tracking.",
+      "h1": "text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter leading-none",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold tracking-tight",
+      "overlines": "text-xs font-semibold tracking-[0.2em] uppercase text-[var(--amber)]"
+    },
+    "body": "text-base leading-relaxed tracking-normal font-normal",
+    "icons": "Lucide React (Strictly no emojis)"
+  },
+  "layout": {
+    "section_spacing": "py-[56px] md:py-[96px]",
+    "container": "mx-auto max-w-7xl px-6 md:px-12",
+    "grids": {
+      "tetris": "grid grid-cols-1 md:grid-cols-8 lg:grid-cols-12 gap-8 md:gap-12 (Use for Feature and Sport Selection cards)",
+      "control_room": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 (Use for Profile Stats and Analytics)"
+    }
+  },
+  "components": {
+    "navigation": "Sticky nav with h-[64px]. z-50. Dark mode: bg-[#1C0A30]/80 backdrop-blur-xl border-b border-white/10. Light mode: bg-[#F4F2F8]/80 backdrop-blur-xl border-b border-[#1C0A30]/10. Wordmark logo text-xl font-black tracking-tighter.",
+    "buttons": {
+      "primary": "bg-[var(--amber)] text-white rounded-[50px] px-8 py-3 font-semibold hover:bg-[var(--amber-light)] transition-colors shadow-lg hover:shadow-[var(--amber)]/30 hover:-translate-y-0.5",
+      "ghost": "border-2 border-[var(--purple-accent)] text-white dark:text-white light:text-[var(--text-dark)] rounded-[50px] px-8 py-3 font-semibold hover:bg-[var(--purple-accent)]/10 transition-colors hover:-translate-y-0.5"
+    },
+    "cards": {
+      "style": "Glassmorphism Crystal Variant",
+      "border_radius": "rounded-[20px]",
+      "dark_mode": "bg-[var(--dark-card)]/80 backdrop-blur-xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)]",
+      "light_mode": "bg-white/80 backdrop-blur-xl backdrop-saturate-150 border border-[#1C0A30]/10 shadow-[0_8px_32px_rgba(28,10,48,0.05)]"
+    },
+    "cta_band": "Grape Labs AI CTA band. Full width, heavy use of the deep-ink to royal-purple gradient. Kinetic typography for 'Find your people. Race your best.'",
+    "accordion": "Use Shadcn accordion. No background, border-b only. Clean, simple font."
+  },
+  "pages": {
+    "home": [
+      "Hero section: Split layout or dynamic center. Floating profile card mockups demonstrating 'Match Percentage'. Use high-contrast background (abstract dark purple texture overlay).",
+      "Sport Selection Cards: Bento grid layout displaying Hyrox, Marathon, Ironman. Use Glassmorphism cards with background images fading in.",
+      "Stats & Events Teaser: Control room layout for stats. Marquee with event badges moving slowly across the screen.",
+      "Grape Labs CTA Band: Distinct section at the bottom."
+    ],
+    "how_it_works": [
+      "Timeline layout using vertical staggered dots.",
+      "FAQ Accordion at the bottom."
+    ],
+    "find_a_partner": [
+      "Filter sidebar (left) and Match Results grid (right).",
+      "Match cards must emphasize Match % (Amber color) and Sport type."
+    ],
+    "events": [
+      "Public listing. Card grid.",
+      "Countdown chips on each event card using tabular-nums for numbers."
+    ],
+    "profile_my_connections": [
+      "Profile detail header. Tabs for My Connections (Pending, Active).",
+      "Profile stats using the control room grid format."
+    ],
+    "onboarding": [
+      "Multi-step wizard with a top progress bar (Amber). Clean, focused, card-in-center layout."
+    ]
+  },
+  "image_urls": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1577915332909-39e7c140bf3c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGRhcmslMjBwdXJwbGUlMjB0ZXh0dXJlfGVufDB8fHx8MTc3NTgxMDc4MXww&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract dark purple texture for hero background overlay"
+    },
+    "sport_marathon": {
+      "url": "https://images.unsplash.com/photo-1774719194893-a8e7f20363b1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwzfHxhdGhsZXRlJTIwcnVubmluZyUyMG5pZ2h0dGltZXxlbnwwfHx8fDE3NzU4MTA3ODF8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Athlete running fast at night with motion blur for Marathon card"
+    },
+    "sport_hyrox": {
+      "url": "https://images.unsplash.com/photo-1662045010187-80bf72e85eee?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzV8MHwxfHNlYXJjaHwxfHxjcm9zc2ZpdCUyMGd5bSUyMGF0aGxldGV8ZW58MHx8fHwxNzc1ODEwNzcxfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Gym athlete representing Crossfit/Hyrox for sport selection card"
+    },
+    "sport_ironman": {
+      "url": "https://images.unsplash.com/photo-1775225350130-26a0966b77ac?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwzfHx0cmlhdGhsb24lMjBhdGhsZXRlJTIwcmFjaW5nfGVufDB8fHx8MTc3NTgxMDc4MXww&ixlib=rb-4.1.0&q=85",
+      "description": "Triathlon/Ironman athlete wearing hat for sport selection card"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the CSS variables provided. Build the Tailwind config to map these exact hex codes.",
+    "Implement the dark/light mode toggle with localStorage persistence. Rely on 'dark:' variants heavily and alternate section backgrounds explicitly on your container wrappers (e.g., alternating background_odd / background_even classes depending on section index).",
+    "All interactive elements MUST have data-testid attributes (kebab-case, role-based).",
+    "Ensure 'Inter' font is imported from Google Fonts. Use weight 800 (font-black) and tight tracking for dramatic headings to balance the lack of display font.",
+    "Components must use glassmorphism with exact specs: 20px radius, backdrop blur, white/10 borders in dark mode. Map this directly to Tailwind utility classes.",
+    "Do NOT use any emojis across the entire app. Use Lucide React icons exclusively.",
+    "Ensure section spacing is exactly 96px on desktop and 56px on mobile (use py-[56px] md:py-[96px]).",
+    "For the Marquee with event badges, use a fast marquee implementation. Keep the speed slow and elegant.",
+    "Do NOT override the colors or component behaviors specified above. The exact design system MUST be adhered to."
+  ]
+}
