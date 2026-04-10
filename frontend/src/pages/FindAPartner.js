@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { calcMatchScore, generateWhyMatched } from '../lib/matching';
+import { calcMatchScore, whyMatched, getMatchLabel, getMatchCaveat, parseSports } from '../lib/matching';
 import { SEED_PROFILES } from '../lib/seedProfiles';
 import { Filter, X, Heart, Eye, CheckCircle, ArrowRight } from 'lucide-react';
 
@@ -18,13 +18,12 @@ function GradientAvatar({ name, size = 48 }) {
   );
 }
 
-const parseSport = (s) => { try { return typeof s === 'string' ? JSON.parse(s) : s || []; } catch { return [s]; } };
-const parseArr = (s) => { try { return typeof s === 'string' ? JSON.parse(s) : s || []; } catch { return []; } };
-
 const sportBadge = (s) => {
   const map = { hyrox: { bg: '#4A3D8F', label: 'HYROX' }, marathon: { bg: '#D4880A', label: 'MARATHON' }, ironman: { bg: '#0F6E56', label: 'IRONMAN' } };
   return map[s] || { bg: '#4A3D8F', label: s?.toUpperCase() };
 };
+
+const parseArr = (s) => { try { return typeof s === 'string' ? JSON.parse(s) : s || []; } catch { return []; } };
 
 export default function FindAPartner() {
   const { user, profile } = useAuth();
@@ -59,7 +58,7 @@ export default function FindAPartner() {
 
     if (filters.sport.length) {
       filtered = filtered.filter(p => {
-        const sports = parseSport(p.sport);
+        const sports = parseSports(p.sport);
         return filters.sport.some(f => sports.includes(f));
       });
     }
@@ -68,17 +67,23 @@ export default function FindAPartner() {
     if (filters.gender.length) filtered = filtered.filter(p => filters.gender.includes(p.gender));
 
     const viewer = profile || {};
-    const scored = filtered.map(p => ({
-      ...p,
-      matchScore: calcMatchScore(viewer, p),
-      whyMatched: generateWhyMatched(viewer, p),
-    }));
+    const scored = filtered.map(p => {
+      const score = profile ? calcMatchScore(viewer, p) : 30;
+      return {
+        ...p,
+        matchScore: score,
+        matchWhy: profile ? whyMatched(viewer, p) : 'Complete your profile for better matches',
+        matchLabel: getMatchLabel(score),
+        matchCaveat: profile ? getMatchCaveat(viewer, p) : null,
+      };
+    })
+    .filter(x => x.matchScore >= 0); // removes self (-1)
 
     if (sort === 'best') scored.sort((a, b) => b.matchScore - a.matchScore);
     else if (sort === 'newest') scored.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     else if (sort === 'active') scored.sort((a, b) => new Date(b.last_active || 0) - new Date(a.last_active || 0));
 
-    setResults(scored.slice(0, 15));
+    setResults(scored);
   }, [allProfiles, filters, sort, profile]);
 
   const toggleFilter = (key, val) => {
@@ -92,7 +97,7 @@ export default function FindAPartner() {
   const activeCount = Object.values(filters).reduce((a, b) => a + b.length, 0);
 
   const getDetailLine = (p) => {
-    const sports = parseSport(p.sport);
+    const sports = parseSports(p.sport);
     if (sports.includes('hyrox')) {
       const strong = parseArr(p.hyrox_strong).slice(0, 2).join(', ');
       const weak = parseArr(p.hyrox_weak).slice(0, 1).join(', ');
@@ -234,7 +239,7 @@ export default function FindAPartner() {
                             )}
                           </div>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {parseSport(p.sport).map(s => {
+                            {parseSports(p.sport).map(s => {
                               const b = sportBadge(s);
                               return <span key={s} className="px-1.5 py-0.5 rounded-pill text-[9px] font-inter font-bold text-white" style={{ background: b.bg }}>{b.label}</span>;
                             })}
@@ -256,19 +261,28 @@ export default function FindAPartner() {
 
                       {/* Match bar */}
                       <div className="mb-2">
-                        <div className="w-full h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                          <div className="h-full rounded-full" style={{ width: `${p.matchScore || 0}%`, background: '#4A3D8F' }} />
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="flex-1 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                            <div className="h-full rounded-full" style={{ width: `${p.matchScore}%`, background: '#D4880A', borderRadius: 2 }} />
+                          </div>
+                          <span className="font-inter font-bold text-[13px] min-w-[40px] text-right" style={{ color: '#D4880A' }}>
+                            {p.matchScore}%
+                          </span>
                         </div>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="font-inter font-bold text-xs" style={{ color: '#F0A500' }}>{p.matchScore || 0}% match</span>
+                        <div className="flex items-center justify-between">
+                          <span className="font-inter text-[11px]" style={{ color: 'rgba(255,255,255,0.5)' }}>{p.matchLabel}</span>
                           <span className="font-inter text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
                             <Eye size={10} className="inline mr-1" />{p.profile_views || 0} views
                           </span>
                         </div>
                       </div>
 
-                      {p.whyMatched && (
-                        <p className="font-inter text-[11px] mb-3" style={{ color: '#A89CC8' }}>{p.whyMatched}</p>
+                      <p className="font-inter text-[11px] mb-1" style={{ color: '#A89CC8' }}>{p.matchWhy}</p>
+
+                      {p.matchCaveat && (
+                        <p className="font-inter text-[11px] mb-3" style={{ color: 'rgba(255,255,255,0.45)', fontStyle: 'italic' }}>
+                          {p.matchCaveat}
+                        </p>
                       )}
 
                       <div className="flex gap-2">
@@ -288,11 +302,22 @@ export default function FindAPartner() {
                 </div>
               ) : (
                 <div className="text-center py-16">
-                  <p className="font-inter text-sm text-white mb-2">No athletes match these filters yet.</p>
-                  <p className="font-inter text-xs mb-4" style={{ color: 'rgba(255,255,255,0.5)' }}>Try widening your search — or be one of the first in your city.</p>
-                  <button onClick={clearFilters} className="font-inter text-xs font-semibold" style={{ color: '#D4880A' }} data-testid="adjust-filters">
-                    Adjust Filters
-                  </button>
+                  {allProfiles.length === 0 ? (
+                    <>
+                      <p className="font-inter text-lg font-semibold text-white mb-2">No athletes yet in your area.</p>
+                      <p className="font-inter text-sm mb-4" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                        Be one of the first — share CREW with your training group.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-inter text-sm text-white mb-2">No athletes match these filters.</p>
+                      <p className="font-inter text-xs mb-4" style={{ color: 'rgba(255,255,255,0.5)' }}>Try widening your search.</p>
+                      <button onClick={clearFilters} className="font-inter text-xs font-semibold" style={{ color: '#D4880A' }} data-testid="adjust-filters">
+                        Clear Filters
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

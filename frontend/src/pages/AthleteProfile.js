@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { calcMatchScore, generateWhyMatched } from '../lib/matching';
+import { calcMatchScore, whyMatched as getWhyMatched } from '../lib/matching';
 import { SEED_PROFILES } from '../lib/seedProfiles';
 import { ArrowRight, Heart, MoreHorizontal, Eye, CheckCircle, MessageCircle, Flag, Ban, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
@@ -119,7 +119,7 @@ export default function AthleteProfile() {
 
   const sports = parseSport(athlete.sport);
   const matchScore = myProfile ? calcMatchScore(myProfile, athlete) : 0;
-  const whyMatched = myProfile ? generateWhyMatched(myProfile, athlete) : '';
+  const matchReason = myProfile ? getWhyMatched(myProfile, athlete) : '';
 
   return (
     <div data-testid="athlete-profile-page" style={{ background: '#1C0A30' }}>
@@ -244,10 +244,10 @@ export default function AthleteProfile() {
           )}
 
           {/* Why match card */}
-          {whyMatched && (
+          {matchReason && (
             <div className="rounded-[20px] p-6 border mb-8" style={{ background: 'rgba(74,61,143,0.15)', borderColor: 'rgba(74,61,143,0.30)' }}>
               <h3 className="font-inter font-semibold text-sm text-white mb-2">Why you'd match</h3>
-              <p className="font-inter text-sm" style={{ color: '#A89CC8' }}>{whyMatched}</p>
+              <p className="font-inter text-sm" style={{ color: '#A89CC8' }}>{matchReason}</p>
               <div className="mt-2">
                 <span className="font-inter font-bold text-lg" style={{ color: '#F0A500' }}>{matchScore}% match</span>
               </div>
