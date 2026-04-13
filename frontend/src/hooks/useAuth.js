@@ -1,29 +1,65 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
-const AuthContext = createContext(null);
+const AuthContext = createContext({
+  session: null,
+  user: null,
+  profile: null,
+  loading: true,
+  refreshProfile: async () => {},
+});
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
+  const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const user = session?.user ?? null;
+  const fetchProfile = useCallback(async (uid) => {
+    if (!uid) return null;
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .single();
+    if (error && error.code !== 'PGRST116') {
+      console.error('fetchProfile error:', error.message);
+    }
+    return data || null;
+  }, []);
 
-  // ── Single effect, empty deps, mounted guard ──
+  const refreshProfile = useCallback(async () => {
+    if (!user?.id) return;
+    const p = await fetchProfile(user.id);
+    setProfile(p);
+  }, [user, fetchProfile]);
+
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    // Single getSession call — the only one in the entire app
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
-      setSession(s);
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        const p = await fetchProfile(session.user.id);
+        if (mounted) setProfile(p);
+      }
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, s) => {
+      async (event, session) => {
         if (!mounted) return;
-        setSession(s);
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          const p = await fetchProfile(session.user.id);
+          if (mounted) setProfile(p);
+        } else {
+          setProfile(null);
+        }
         setLoading(false);
       }
     );
@@ -32,52 +68,16 @@ export function AuthProvider({ children }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
-
-  // ── Fetch profile whenever session.user changes ──
-  const fetchProfile = useCallback(async (userId) => {
-    if (!userId) { setProfile(null); return null; }
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      setProfile(data);
-      return data;
-    } catch {
-      setProfile(null);
-      return null;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (user?.id) {
-      fetchProfile(user.id);
-    } else {
-      setProfile(null);
-    }
-  }, [user?.id, fetchProfile]);
-
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    window.location.href = '/';
-  }, []);
-
-  const refreshProfile = useCallback(async () => {
-    if (user) return fetchProfile(user.id);
-    return null;
-  }, [user, fetchProfile]);
+  }, [fetchProfile]);
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, signOut, refreshProfile, fetchProfile }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
+  return useContext(AuthContext);
 }
+
