@@ -995,7 +995,7 @@ export default function GetStarted() {
                 <ArrowLeft size={16} />
               </button>
               <button
-                onClick={goNext}
+                onClick={() => goNext()}
                 disabled={!answers.name?.trim() || !answers.age || !answers.gender || submitting}
                 className="flex-1 py-3 rounded-full font-inter font-bold text-sm disabled:opacity-30"
                 style={{ background: '#D4880A', color: '#fff' }}
