@@ -1,83 +1,141 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
-const AuthContext = createContext({
-  session: null,
-  user: null,
-  profile: null,
-  loading: true,
-  refreshProfile: async () => {},
-});
-
-export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null);
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchProfile = useCallback(async (uid) => {
-    if (!uid) return null;
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', uid)
-      .single();
-    if (error && error.code !== 'PGRST116') {
-      console.error('fetchProfile error:', error.message);
-    }
-    return data || null;
-  }, []);
-
-  const refreshProfile = useCallback(async () => {
-    if (!user?.id) return;
-    const p = await fetchProfile(user.id);
-    setProfile(p);
-  }, [user, fetchProfile]);
+/**
+ * AuthCallback
+ *
+ * Supabase redirects here after a magic-link click:
+ *   https://yourapp.com/auth/callback?code=...
+ *
+ * With flowType: 'pkce', the JS client automatically exchanges the `code`
+ * query-param for a session when it detects it in the URL — we just need to
+ * wait for onAuthStateChange to fire, then redirect appropriately.
+ */
+export default function AuthCallback() {
+  const navigate = useNavigate();
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    let mounted = true;
+    let resolved = false;
 
-    // Single getSession call — the only one in the entire app
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!mounted) return;
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const p = await fetchProfile(session.user.id);
-        if (mounted) setProfile(p);
+    // The Supabase client handles the PKCE code exchange automatically when
+    // detectSessionInUrl: true.  We subscribe to the auth state and redirect
+    // once we have a confirmed session (or an error).
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (resolved) return;
+
+      if (event === 'SIGNED_IN' && session) {
+        resolved = true;
+        subscription.unsubscribe();
+
+        // Check if the user has a completed profile (has a name).
+        // If not, send them to onboarding; otherwise to find-a-partner.
+        supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data }) => {
+            if (data?.name?.trim()) {
+              navigate('/find-a-partner', { replace: true });
+            } else {
+              navigate('/get-started', { replace: true });
+            }
+          });
       }
-      setLoading(false);
+
+      if (event === 'TOKEN_REFRESHED' && session) {
+        resolved = true;
+        subscription.unsubscribe();
+        navigate('/find-a-partner', { replace: true });
+      }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          const p = await fetchProfile(session.user.id);
-          if (mounted) setProfile(p);
-        } else {
-          setProfile(null);
-        }
-        setLoading(false);
+    // Safety fallback: if nothing fires within 10 s, show an error
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        setError('Sign-in timed out. Please try again.');
+        subscription.unsubscribe();
       }
-    );
+    }, 10000);
 
     return () => {
-      mounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [navigate]);
+
+  if (error) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          background: '#1C0A30',
+          gap: 16,
+        }}
+      >
+        <p style={{ color: '#ef4444', fontFamily: 'Inter, sans-serif', fontSize: 14 }}>
+          {error}
+        </p>
+        <button
+          onClick={() => (window.location.href = '/get-started')}
+          style={{
+            padding: '10px 24px',
+            background: '#D4880A',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 999,
+            fontFamily: 'Inter, sans-serif',
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          Back to Sign In
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, refreshProfile }}>
-      {children}
-    </AuthContext.Provider>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: '#1C0A30',
+        gap: 16,
+      }}
+    >
+      {/* Spinner */}
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          border: '3px solid #D4880A',
+          borderTopColor: 'transparent',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite',
+        }}
+      />
+      <p
+        style={{
+          color: 'rgba(255,255,255,0.5)',
+          fontFamily: 'Inter, sans-serif',
+          fontSize: 13,
+        }}
+      >
+        Signing you in…
+      </p>
+    </div>
   );
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
 }
 
