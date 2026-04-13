@@ -88,17 +88,28 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
-    // onAuthStateChange fires INITIAL_SESSION immediately with the current
-    // session — no need for a separate getSession() call which causes the
-    // "lock was released because another request stole it" error.
+    // getSession() hydrates immediately on page load
+    // Works correctly with implicit flow — no lock conflict
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        const p = await ensureProfile(session.user.id, session.user.email);
+        if (mounted) setProfile(p);
+      }
+      if (mounted) setLoading(false);
+    });
+
+    // onAuthStateChange handles future events only
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
-
+      // Skip INITIAL_SESSION — already handled by getSession() above
+      if (event === 'INITIAL_SESSION') return;
       setSession(newSession);
       setUser(newSession?.user ?? null);
-
       if (newSession?.user) {
         const p = await ensureProfile(
           newSession.user.id,
@@ -108,7 +119,6 @@ export function AuthProvider({ children }) {
       } else {
         if (mounted) setProfile(null);
       }
-
       if (mounted) setLoading(false);
     });
 
