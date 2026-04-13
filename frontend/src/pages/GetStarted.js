@@ -54,7 +54,7 @@ function ChipSelect({ options, selected, onToggle, multi = true }) {
 }
 
 export default function GetStarted() {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, session } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState('auth');
   const [answers, setAnswers] = useState({});
@@ -62,6 +62,7 @@ export default function GetStarted() {
   const [phone, setPhone] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [events, setEvents] = useState([]);
 
@@ -107,21 +108,37 @@ export default function GetStarted() {
   };
 
   const upsertProfile = async (data) => {
-    if (!user) return;
-    try {
-      await supabase.from('profiles').upsert({ id: user.id, ...data });
-    } catch (e) { console.error('Upsert error:', e); }
+    const uid = session?.user?.id || user?.id;
+    if (!uid) { console.error('No session — cannot save profile'); return false; }
+    const { error } = await supabase.from('profiles').upsert(
+      { id: uid, ...data, last_active: new Date().toISOString() },
+      { onConflict: 'id' }
+    );
+    if (error) {
+      console.error('Profile save error:', error.code, error.message, error.details);
+      toast.error('Could not save your progress. Please try again.');
+      return false;
+    }
+    return true;
   };
 
   const goNext = async (stepData = {}) => {
+    if (submitting) return;
+    setSubmitting(true);
     const merged = { ...answers, ...stepData };
     setAnswers(merged);
+
+    if (user) {
+      const ok = await upsertProfile(merged);
+      if (!ok) { setSubmitting(false); return; }
+    }
+
     const seq = getStepSequence();
     const idx = seq.indexOf(step);
     const next = idx < seq.length - 1 ? seq[idx + 1] : 'done';
     saveProgress(next, merged);
-    if (user) upsertProfile(merged);
     setStep(next);
+    setSubmitting(false);
   };
 
   const goBack = () => {
@@ -147,8 +164,9 @@ export default function GetStarted() {
 
   const handleFinalSave = async () => {
     if (!user) return false;
+    const uid = session?.user?.id || user?.id;
     const finalData = {
-      id: user.id,
+      id: uid,
       name: answers.name, age: answers.age ? parseInt(answers.age) : null,
       gender: answers.gender, city: answers.city, area: answers.area,
       lat: answers.lat, lng: answers.lng,
@@ -265,10 +283,10 @@ export default function GetStarted() {
               })}
             </div>
             <button onClick={() => goNext({ sport: JSON.stringify(answers.sport || []) })}
-              disabled={!answers.sport?.length}
+              disabled={!answers.sport?.length || submitting}
               className="w-full py-3 rounded-pill font-inter font-bold text-sm transition-all disabled:opacity-30"
               style={{ background: '#D4880A', color: '#fff' }} data-testid="sport-select-next">
-              Next <ArrowRight size={16} className="inline ml-1" />
+              {submitting ? 'Saving...' : 'Next'} <ArrowRight size={16} className="inline ml-1" />
             </button>
           </div>
         );
@@ -280,7 +298,7 @@ export default function GetStarted() {
             <h2 className="font-inter font-[800] text-3xl text-white mb-6">Tell us about your Hyrox.</h2>
             <div className="space-y-6">
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Target event</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">Which Hyrox race are you training for?</label>
                 <select value={answers.target_race || ''} onChange={e => update('target_race', e.target.value)}
                   className="w-full px-4 py-3 rounded-[12px] font-inter text-sm text-white outline-none"
                   style={{ background: 'rgba(42,26,69,0.60)', border: '1px solid rgba(74,61,143,0.30)' }}
@@ -290,7 +308,7 @@ export default function GetStarted() {
                 </select>
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Category</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">What category will you race in?</label>
                 <div className="space-y-2">
                   {['Open', 'Pro', 'Doubles', 'Mixed Doubles'].map(c => (
                     <RadioCard key={c} label={c} selected={answers.hyrox_category === c.toLowerCase().replace(' ', '_')}
@@ -300,7 +318,7 @@ export default function GetStarted() {
                 </div>
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Races completed</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">How many Hyrox races have you done?</label>
                 <ChipSelect options={['First time', '1-2', '3-5', '5+']} selected={answers._hyrox_exp} multi={false}
                   onToggle={v => {
                     update('_hyrox_exp', v);
@@ -311,7 +329,7 @@ export default function GetStarted() {
             </div>
             <div className="flex gap-3 mt-8">
               <button onClick={goBack} className="px-6 py-3 rounded-pill font-inter font-semibold text-sm" style={{ border: '2px solid rgba(74,61,143,0.30)', color: '#fff' }}><ArrowLeft size={16} /></button>
-              <button onClick={() => goNext()} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="hyrox-race-next">Next</button>
+              <button onClick={goNext} disabled={submitting} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="hyrox-race-next">{submitting ? 'Saving...' : 'Next'}</button>
             </div>
           </div>
         );
@@ -323,18 +341,19 @@ export default function GetStarted() {
             <h2 className="font-inter font-[800] text-3xl text-white mb-6">How do you train?</h2>
             <div className="space-y-6">
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">5km time (optional)</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">What's your current 5km run time?</label>
                 <input type="text" value={answers.hyrox_5k_time || ''} onChange={e => update('hyrox_5k_time', e.target.value)}
                   placeholder="e.g. 26:30" className="w-full px-4 py-3 rounded-[12px] font-inter text-sm text-white placeholder:text-gray-500 outline-none"
                   style={{ background: 'rgba(42,26,69,0.60)', border: '1px solid rgba(74,61,143,0.30)' }} data-testid="hyrox-5k-time" />
+                <p className="font-inter text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Helps us find athletes at your pace. Skip if you don't know.</p>
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Training days/week</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">How many days a week do you train?</label>
                 <ChipSelect options={['1-2', '3-4', '5-6', 'Every day']} selected={answers.training_days} multi={false}
                   onToggle={v => update('training_days', v)} />
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Training time</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">When do you usually train?</label>
                 <ChipSelect options={TRAINING_TIMES} selected={answers.training_time || []}
                   onToggle={v => toggleArray('training_time', v)} />
               </div>
@@ -347,7 +366,7 @@ export default function GetStarted() {
             </div>
             <div className="flex gap-3 mt-8">
               <button onClick={goBack} className="px-6 py-3 rounded-pill font-inter font-semibold text-sm" style={{ border: '2px solid rgba(74,61,143,0.30)', color: '#fff' }}><ArrowLeft size={16} /></button>
-              <button onClick={() => goNext()} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="hyrox-fitness-next">Next</button>
+              <button onClick={goNext} disabled={submitting} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="hyrox-fitness-next">{submitting ? 'Saving...' : 'Next'}</button>
             </div>
           </div>
         );
@@ -359,15 +378,15 @@ export default function GetStarted() {
             <h2 className="font-inter font-[800] text-3xl text-white mb-6">Know your stations.</h2>
             <div className="space-y-6">
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Strong stations</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">Which stations are your strongest?</label>
                 <ChipSelect options={HYROX_STATIONS} selected={answers.hyrox_strong || []} onToggle={v => toggleArray('hyrox_strong', v)} />
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Working on</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">Which stations do you want to improve?</label>
                 <ChipSelect options={HYROX_STATIONS} selected={answers.hyrox_weak || []} onToggle={v => toggleArray('hyrox_weak', v)} />
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Partner type</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">What kind of training partner are you looking for?</label>
                 <div className="space-y-2">
                   {['Train regularly', 'Occasional sessions', 'Race day only', 'Just connect'].map(g => (
                     <RadioCard key={g} label={g} selected={answers.partner_goal === g} testId={`partner-goal-${g}`} onClick={() => update('partner_goal', g)} />
@@ -375,7 +394,7 @@ export default function GetStarted() {
                 </div>
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Level preference</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">What level partner suits you best?</label>
                 <ChipSelect options={['Same level', 'Someone better', 'Happy to guide', 'Open']} selected={answers.partner_level_pref} multi={false}
                   onToggle={v => update('partner_level_pref', v)} />
               </div>
@@ -387,7 +406,7 @@ export default function GetStarted() {
             </div>
             <div className="flex gap-3 mt-8">
               <button onClick={goBack} className="px-6 py-3 rounded-pill font-inter font-semibold text-sm" style={{ border: '2px solid rgba(74,61,143,0.30)', color: '#fff' }}><ArrowLeft size={16} /></button>
-              <button onClick={() => goNext()} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="hyrox-stations-next">Next</button>
+              <button onClick={goNext} disabled={submitting} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="hyrox-stations-next">{submitting ? 'Saving...' : 'Next'}</button>
             </div>
           </div>
         );
@@ -399,7 +418,7 @@ export default function GetStarted() {
             <h2 className="font-inter font-[800] text-3xl text-white mb-6">Tell us about your race.</h2>
             <div className="space-y-6">
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Distance</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">What distance are you training for?</label>
                 <div className="space-y-2">
                   {['5K', '10K', 'Half', 'Full', 'Ultra'].map(d => (
                     <RadioCard key={d} label={d} selected={answers.marathon_distance === d} testId={`marathon-dist-${d}`} onClick={() => update('marathon_distance', d)} />
@@ -407,7 +426,7 @@ export default function GetStarted() {
                 </div>
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Target race</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">Is there a specific race you're targeting?</label>
                 <select value={answers.target_race || ''} onChange={e => update('target_race', e.target.value)}
                   className="w-full px-4 py-3 rounded-[12px] font-inter text-sm text-white outline-none"
                   style={{ background: 'rgba(42,26,69,0.60)', border: '1px solid rgba(74,61,143,0.30)' }} data-testid="marathon-target-race">
@@ -427,7 +446,7 @@ export default function GetStarted() {
             </div>
             <div className="flex gap-3 mt-8">
               <button onClick={goBack} className="px-6 py-3 rounded-pill font-inter font-semibold text-sm" style={{ border: '2px solid rgba(74,61,143,0.30)', color: '#fff' }}><ArrowLeft size={16} /></button>
-              <button onClick={() => goNext()} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="marathon-race-next">Next</button>
+              <button onClick={goNext} disabled={submitting} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="marathon-race-next">{submitting ? 'Saving...' : 'Next'}</button>
             </div>
           </div>
         );
@@ -439,14 +458,14 @@ export default function GetStarted() {
             <h2 className="font-inter font-[800] text-3xl text-white mb-6">What does your training look like?</h2>
             <div className="space-y-6">
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Long run pace (min/km)</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">What's your comfortable long run pace per km?</label>
                 <input type="text" value={answers.marathon_pace || ''} onChange={e => update('marathon_pace', e.target.value)}
                   placeholder="e.g. 5:45" className="w-full px-4 py-3 rounded-[12px] font-inter text-sm text-white placeholder:text-gray-500 outline-none"
                   style={{ background: 'rgba(42,26,69,0.60)', border: '1px solid rgba(74,61,143,0.30)' }} data-testid="marathon-pace" />
-                <p className="font-inter text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>5:00 fast · 5:30 intermediate · 6:30+ comfortable</p>
+                <p className="font-inter text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>e.g. 5:45 — your easy pace, not race pace</p>
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Weekly km</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">How many kilometres do you run per week?</label>
                 <ChipSelect options={['Under 20km', '20-40km', '40-60km', '60-80km', '80km+']} selected={answers.marathon_weekly_km} multi={false}
                   onToggle={v => update('marathon_weekly_km', v)} />
               </div>
@@ -475,7 +494,7 @@ export default function GetStarted() {
             <h2 className="font-inter font-[800] text-3xl text-white mb-6">What are you trying to achieve?</h2>
             <div className="space-y-6">
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Goal</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">What's your main goal for this race?</label>
                 <div className="space-y-2">
                   {['Just finish', 'Beat my PB', 'Hit a target time', 'Compete'].map(g => (
                     <RadioCard key={g} label={g} selected={answers.marathon_goal === g} testId={`marathon-goal-${g}`} onClick={() => update('marathon_goal', g)} />
@@ -483,7 +502,7 @@ export default function GetStarted() {
                 </div>
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Partner type</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">What kind of running partner are you looking for?</label>
                 <div className="space-y-2">
                   {['Long run partner', 'Tempo partner', 'Race day pacer', 'Full training partner', 'Just connect'].map(g => (
                     <RadioCard key={g} label={g} selected={answers.partner_goal === g} testId={`marathon-partner-${g}`} onClick={() => update('partner_goal', g)} />
@@ -510,7 +529,7 @@ export default function GetStarted() {
             <h2 className="font-inter font-[800] text-3xl text-white mb-6">Tell us about your race.</h2>
             <div className="space-y-6">
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Race type</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">What distance triathlon are you training for?</label>
                 <div className="space-y-2">
                   {['Sprint', 'Olympic', '70.3 Half', 'Full Ironman'].map(t => (
                     <RadioCard key={t} label={t} selected={answers.ironman_race_type === t} testId={`ironman-type-${t}`} onClick={() => update('ironman_race_type', t)} />
@@ -538,7 +557,7 @@ export default function GetStarted() {
             </div>
             <div className="flex gap-3 mt-8">
               <button onClick={goBack} className="px-6 py-3 rounded-pill font-inter font-semibold text-sm" style={{ border: '2px solid rgba(74,61,143,0.30)', color: '#fff' }}><ArrowLeft size={16} /></button>
-              <button onClick={() => goNext()} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="ironman-race-next">Next</button>
+              <button onClick={goNext} disabled={submitting} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="ironman-race-next">{submitting ? 'Saving...' : 'Next'}</button>
             </div>
           </div>
         );
@@ -550,17 +569,17 @@ export default function GetStarted() {
             <h2 className="font-inter font-[800] text-3xl text-white mb-6">How do you train right now?</h2>
             <div className="space-y-6">
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Weekly hours</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">How many hours a week do you train across all disciplines?</label>
                 <ChipSelect options={['Under 6hrs', '6-10hrs', '10-15hrs', '15-20hrs', '20hrs+']} selected={answers.ironman_hours} multi={false}
                   onToggle={v => update('ironman_hours', v)} />
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Strong disciplines</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">Which disciplines are you strongest in?</label>
                 <ChipSelect options={['Swim', 'Bike', 'Run', 'Transitions']} selected={answers.ironman_strong || []}
                   onToggle={v => toggleArray('ironman_strong', v)} />
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Working on</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">Which disciplines are you working to improve?</label>
                 <ChipSelect options={['Swim', 'Bike', 'Run', 'Transitions']} selected={answers.ironman_weak || []}
                   onToggle={v => toggleArray('ironman_weak', v)} />
               </div>
@@ -572,7 +591,7 @@ export default function GetStarted() {
             </div>
             <div className="flex gap-3 mt-8">
               <button onClick={goBack} className="px-6 py-3 rounded-pill font-inter font-semibold text-sm" style={{ border: '2px solid rgba(74,61,143,0.30)', color: '#fff' }}><ArrowLeft size={16} /></button>
-              <button onClick={() => goNext()} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="ironman-training-next">Next</button>
+              <button onClick={goNext} disabled={submitting} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="ironman-training-next">{submitting ? 'Saving...' : 'Next'}</button>
             </div>
           </div>
         );
@@ -584,7 +603,7 @@ export default function GetStarted() {
             <h2 className="font-inter font-[800] text-3xl text-white mb-6">What kind of partner?</h2>
             <div className="space-y-6">
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-2">Partner type</label>
+                <label className="font-inter text-xs font-medium text-white block mb-2">What kind of training partner do you need?</label>
                 <div className="space-y-2">
                   {['Full training partner', 'Swim buddy', 'Cycling partner', 'Running partner', 'Race day company', 'Just connect'].map(g => (
                     <RadioCard key={g} label={g} selected={answers.partner_goal === g} testId={`ironman-partner-${g}`} onClick={() => update('partner_goal', g)} />
@@ -604,7 +623,7 @@ export default function GetStarted() {
             </div>
             <div className="flex gap-3 mt-8">
               <button onClick={goBack} className="px-6 py-3 rounded-pill font-inter font-semibold text-sm" style={{ border: '2px solid rgba(74,61,143,0.30)', color: '#fff' }}><ArrowLeft size={16} /></button>
-              <button onClick={() => goNext()} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="ironman-partner-next">Next</button>
+              <button onClick={goNext} disabled={submitting} className="flex-1 py-3 rounded-pill font-inter font-bold text-sm" style={{ background: '#D4880A', color: '#fff' }} data-testid="ironman-partner-next">{submitting ? 'Saving...' : 'Next'}</button>
             </div>
           </div>
         );
@@ -622,7 +641,7 @@ export default function GetStarted() {
                 <p className="font-inter text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Only your first name shows on your card.</p>
               </div>
               <div>
-                <label className="font-inter text-xs font-medium text-white block mb-1.5">Age *</label>
+                <label className="font-inter text-xs font-medium text-white block mb-1.5">How old are you?</label>
                 <input type="number" min={16} max={80} value={answers.age || ''} onChange={e => update('age', e.target.value)} placeholder="28"
                   className="w-full px-4 py-3 rounded-[12px] font-inter text-sm text-white placeholder:text-gray-500 outline-none"
                   style={{ background: 'rgba(42,26,69,0.60)', border: '1px solid rgba(74,61,143,0.30)' }} data-testid="profile-age" />
@@ -635,7 +654,7 @@ export default function GetStarted() {
               <div>
                 <label className="font-inter text-xs font-medium text-white block mb-1.5">Bio (optional)</label>
                 <textarea value={answers.bio || ''} onChange={e => update('bio', e.target.value.slice(0, 200))}
-                  placeholder="e.g. Engineer by day, Hyrox-obsessed by night." maxLength={200} rows={3}
+                  placeholder="e.g. Engineer by day, Hyrox-obsessed by night. Looking for someone who won't quit at station 5." maxLength={200} rows={3}
                   className="w-full px-4 py-3 rounded-[12px] font-inter text-sm text-white placeholder:text-gray-500 outline-none resize-none"
                   style={{ background: 'rgba(42,26,69,0.60)', border: '1px solid rgba(74,61,143,0.30)' }} data-testid="profile-bio" />
                 <p className="font-inter text-[11px] text-right" style={{ color: 'rgba(255,255,255,0.3)' }}>{(answers.bio || '').length}/200</p>
@@ -652,9 +671,9 @@ export default function GetStarted() {
             </div>
             <div className="flex gap-3 mt-8">
               <button onClick={goBack} className="px-6 py-3 rounded-pill font-inter font-semibold text-sm" style={{ border: '2px solid rgba(74,61,143,0.30)', color: '#fff' }}><ArrowLeft size={16} /></button>
-              <button onClick={() => goNext()} disabled={!answers.name?.trim() || !answers.age || !answers.gender}
+              <button onClick={goNext} disabled={!answers.name?.trim() || !answers.age || !answers.gender || submitting}
                 className="flex-1 py-3 rounded-pill font-inter font-bold text-sm disabled:opacity-30"
-                style={{ background: '#D4880A', color: '#fff' }} data-testid="profile-details-next">Next</button>
+                style={{ background: '#D4880A', color: '#fff' }} data-testid="profile-details-next">{submitting ? 'Saving...' : 'Next'}</button>
             </div>
           </div>
         );

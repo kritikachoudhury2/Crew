@@ -10,12 +10,14 @@ export default function Events() {
 
   useEffect(() => {
     const fetchEvents = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('events')
         .select('*')
         .gte('event_date', new Date().toISOString().split('T')[0])
+        .lte('event_date', '2026-12-31')
         .eq('is_active', true)
         .order('event_date', { ascending: true });
+      if (error) console.error('Events fetch error:', error.message);
       setEvents(data || []);
       setLoading(false);
     };
