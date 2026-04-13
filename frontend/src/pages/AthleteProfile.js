@@ -45,7 +45,7 @@ export default function AthleteProfile() {
 
       // Increment views
       if (data && user) {
-        await supabase.rpc('increment_profile_views', { profile_id: id }).catch(() => {
+        await supabase.rpc('increment_profile_views', { profile_id: id }).then(() => {}).catch(() => {
           // RPC might not exist, silently fail
         });
       }
