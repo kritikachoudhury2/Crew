@@ -17,9 +17,7 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
     detectSessionInUrl: true,
     persistSession: true,
     autoRefreshToken: true,
-    storageKey: 'crew-auth-token',
-    // PKCE is required for magic-link / OTP flows with Supabase
-    flowType: 'pkce',
+    flowType: 'implicit',
   },
 });
 
