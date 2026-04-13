@@ -71,7 +71,7 @@ function NavButtons({ onBack, onNext, disabled, nextLabel = 'Next', showBack = t
         </button>
       )}
       <button
-        onClick={onNext}
+        onClick={() => onNext()}
         disabled={disabled}
         className="flex-1 py-3 rounded-full font-inter font-bold text-sm disabled:opacity-30 transition-all"
         style={{ background: '#D4880A', color: '#fff' }}
