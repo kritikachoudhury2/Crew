@@ -6,10 +6,7 @@ const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    '[Crew] Missing Supabase env vars. ' +
-    'Ensure REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY are set in your .env file.'
-  );
+  console.error('[Crew] Missing Supabase env vars. Check REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY in Vercel settings.');
 }
 
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
